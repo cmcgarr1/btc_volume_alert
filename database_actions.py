@@ -96,7 +96,7 @@ def load_data(table_name):
     #db_cursor.execute('INSERT INTO btc_price_data (price,volume_24h,percent_change_1h,percent_change_24h,percent_change_7d,market_cap,last_updated) VALUES (%s,%s,%s,%s,%s,%s,%s)', value_list)
     db_connection.commit()
 
-def update_singe_volume_percent(table_name,time_frame):
+def update_single_volume_percent(table_name,time_frame):
     db_connection = connect_to_database()
     db_cursor = db_connection.cursor()
 
@@ -114,6 +114,25 @@ def update_singe_volume_percent(table_name,time_frame):
             str(volume_percent_change) + " where id="+str(last_volume_call[0][0])
     db_cursor.execute(insert_string)
 
+    db_connection.commit()
+
+def update_volume_moving_average(table_name,time_frame):
+    db_connection = connect_to_database()
+    db_cursor = db_connection.cursor()
+
+    db_cursor.execute("SELECT id, volume_24h FROM "+table_name +
+                      " WHERE id=(SELECT MAX(id) FROM "+table_name+")")
+    last_volume_call=db_cursor.fetchall()
+
+    db_cursor.execute("SELECT SUM(volume_24h) FROM "+table_name +
+                      " WHERE id<"+str(last_volume_call[0][0])+" AND id >"+str(last_volume_call[0][0]-time_frame))
+    previous_volume_call=db_cursor.fetchall()
+
+    moving_average=previous_volume_call[0][0]/time_frame
+    change_moving_average=((last_volume_call[0][1]/moving_average)-1)
+    insert_string = "UPDATE "+table_name+" SET moving_average=" + \
+            str(change_moving_average) + " where id="+str(last_volume_call[0][0])
+    db_cursor.execute(insert_string)
     db_connection.commit()
 
 def update_volume_percent_change_all(table_name,time_frame):
@@ -145,13 +164,16 @@ def update_volume_percent_change_all(table_name,time_frame):
 
     db_connection.commit()
 
-def get_last_volume_change(table_name, change_flag):
+def get_last_volume_change(table_name, change_flag, use_moving_average=0):
     db_connection = connect_to_database()
     db_cursor = db_connection.cursor()
 
-    db_cursor.execute("SELECT volume_percent_change,price FROM "+table_name + \
+    if use_moving_average==1:
+        db_cursor.execute("SELECT moving_average,price FROM "+table_name + \
                       " WHERE id=(SELECT MAX(id) FROM "+table_name+")")
-
+    else:
+        db_cursor.execute("SELECT volume_percent_change,price FROM "+table_name + \
+                      " WHERE id=(SELECT MAX(id) FROM "+table_name+")")
     volume_percent_change = db_cursor.fetchall()
 
     if abs(volume_percent_change[0][0])>change_flag:
